@@ -28,7 +28,7 @@ namespace ScoreLeaderboard.Services
             var res = new List<CustomerResponse>();
             var count = _customers.Count;
             if (count < start) return res;
-            for (int i = start; i <= int.Min(end, count-1); i++)
+            for (int i = start; i <= int.Min(end, count); i++)
             {
                 var customer = _rankedList[i - 1];
                 res.Add(new CustomerResponse(customer.CustomerId, customer.Score, i));
@@ -46,7 +46,7 @@ namespace ScoreLeaderboard.Services
             if (customer == null) return res;
 
             var rankCur = _rankedList.IndexOf(customer) + 1;
-            if (rankCur < 0) return res;
+            if (rankCur < 1) return res;
             int start = int.Max(1, rankCur - low);
             int end = rankCur + high;
             return GetCustomersByRank(start, end);
