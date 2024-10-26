@@ -16,7 +16,7 @@ namespace ScoreLeaderboard.Controllers
         }
 
         [HttpPost("customer/{customerId}/score/{score}")]
-        public ActionResult<decimal> UpdateScore(long customerId, decimal score)
+        public ActionResult<decimal> UpdateScore(ulong customerId, decimal score)
         {
             var updatedScore = _leaderboardService.UpdateScore(customerId, score);
             return Ok(updatedScore);
@@ -30,7 +30,7 @@ namespace ScoreLeaderboard.Controllers
         }
 
         [HttpGet("leaderboard/{customerId}")]
-        public ActionResult<List<CustomerResponse>> GetCustomerNeighborhood(long customerId, [FromQuery] int high = 0, [FromQuery] int low = 0)
+        public ActionResult<List<CustomerResponse>> GetCustomerNeighborhood(ulong customerId, [FromQuery] int high = 0, [FromQuery] int low = 0)
         {
             var neighbors = _leaderboardService.GetCustomerNeighborhood(customerId, high, low);
             return Ok(neighbors);
