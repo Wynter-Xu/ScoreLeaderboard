@@ -1,6 +1,4 @@
-﻿using System.Collections.Concurrent;
-
-namespace ScoreLeaderboard.Models
+﻿namespace ScoreLeaderboard.Models
 {
     internal struct Customer : IComparable<Customer>
     {
@@ -25,6 +23,7 @@ namespace ScoreLeaderboard.Models
     {
         public Customer Customer;
         public SkipListNode[] Forward;
+
 
         public SkipListNode(Customer customer, int level)
         {
@@ -100,7 +99,7 @@ namespace ScoreLeaderboard.Models
             }
 
             node = node.Forward[0];
-            if (node != null && node.Customer.CompareTo(customer) == 0)
+            if (node?.Customer.Id == customer.Id)
             {
                 for (int i = 0; i < _currentLevel; i++)
                 {
@@ -127,58 +126,69 @@ namespace ScoreLeaderboard.Models
         }
     }
 
-    public record CustomerResponse(ulong CustomerId, decimal Score, int Rank);    
+    public record CustomerResponse(ulong CustomerId, decimal Score, int Rank);
 
     public class SkipListRank
     {
         private readonly Dictionary<ulong, decimal> _customers;
-        private readonly Dictionary<ulong, int> _ranks;
+        private readonly Dictionary<ulong, int> _idRanks;
+        private readonly Dictionary<int, ulong> _rankIds;
         private readonly SkipList _skipList;
 
         public SkipListRank(int maxLevel)
         {
             _customers = new();
-            _ranks = new();
+            _idRanks = new();
+            _rankIds = new();
             _skipList = new SkipList(maxLevel);
         }
 
         public decimal UpdateScore(ulong customerId, decimal scoreChange)
         {
-            _ranks.Clear();
+            _idRanks.Clear();
+            _rankIds.Clear();
             if (_customers.TryGetValue(customerId, out decimal score))
             {
-                // 更新客户积分  
-                decimal newScore = score + scoreChange;
-                var customer = new Customer(customerId, newScore);
+
                 // 在跳表中删除现有节点，然后重新插入新的分数  
-                _skipList.Delete(customer);
-                _skipList.Insert(customer);
-                return newScore;
-            }
-            else
-            {
-                // 若客户不存在，则添加新客户  
-                var customer = new Customer(customerId, scoreChange);
-                _customers[customerId] = scoreChange;
-                _skipList.Insert(customer);
-                return customer.Score;
+                _skipList.Delete(new Customer(customerId, score));
             }
 
+            var customer = new Customer(customerId, scoreChange + score);
+            _skipList.Insert(customer);
+            _customers[customerId] = scoreChange + score;
+            return customer.Score;
         }
 
         public List<CustomerResponse> GetCustomersByRank(int start, int end)
         {
-            List<CustomerResponse> result = new List<CustomerResponse>(end - start + 1);
+            var capacity = end - start + 1;
+            if (_rankIds.ContainsKey(end))
+            {
+                var res = new List<CustomerResponse>(capacity);
+                for (int i = start; i <= end; i++)
+                {
+                    if (_rankIds.TryGetValue(i, out var customerId))
+                    {
+                        res.Add(new CustomerResponse(customerId, _customers[customerId], i));
+                    }
+                    else break;
+                }
+                if (res.Count == capacity) return res;
+            }
 
+            List<CustomerResponse> result = new(capacity);
             SkipListNode node = _skipList._header.Forward[0];
             int rank = 1;
 
             while (node != null && rank <= end)
             {
-                _ranks[node.Customer.Id]=rank;
+                var id = node.Customer.Id;
+                _idRanks[id] = rank;
+                _rankIds[rank] = id;
                 if (rank >= start)
                 {
-                    result.Add(new CustomerResponse(node.Customer.Id, node.Customer.Score, rank));
+                    result.Add(new CustomerResponse(id, node.Customer.Score, rank));
                 }
                 node = node.Forward[0];
                 rank++;
@@ -190,29 +200,28 @@ namespace ScoreLeaderboard.Models
         public List<CustomerResponse> GetCustomerNeighborhood(ulong customerId, int high = 0, int low = 0)
         {
             List<CustomerResponse> result = new List<CustomerResponse>(1 + low + high);
-            if (_ranks.TryGetValue(customerId, out int rank))
+            if (_idRanks.TryGetValue(customerId, out int rank))
             {
-                result = GetCustomersByRank(rank - low, rank + high);
+                result = GetCustomersByRank(rank - high, rank + low);
             }
             else
             {
                 if (_customers.TryGetValue(customerId, out decimal score))
                 {
-                    Dictionary<int, ulong> rankIds = new(1 + low + high);
-
                     SkipListNode? node = _skipList._header.Forward[0];
                     rank = 1;
                     var customer = new Customer(customerId, score);
                     // 寻找当前客户的排名  
                     while (node != null)
                     {
-                        _ranks[node.Customer.Id] = rank;
-                        rankIds[rank] = node.Customer.Id;
+                        var id = node.Customer.Id;
+                        _idRanks[id] = rank;
+                        _rankIds[rank] = id;
                         if (node.Customer.CompareTo(customer) < 0)
                         {
                             rank++;
                         }
-                        else if (node.Customer.CompareTo(customer) == 0 && node.Customer.Id == customerId)
+                        else if (node.Customer.CompareTo(customer) == 0 && id == customerId)
                         {
                             break;
                         }
@@ -222,7 +231,7 @@ namespace ScoreLeaderboard.Models
                     // 找到高排名邻居  
                     for (int i = rank - high; i <= rank; i++)
                     {
-                        var id = rankIds[i];
+                        var id = _rankIds[i];
                         result.Add(new CustomerResponse(id, _customers[id], i));
                     }
 
@@ -232,9 +241,11 @@ namespace ScoreLeaderboard.Models
                         node = node?.Forward[0];
                         if (node != null)
                         {
+                            var id = node.Customer.Id;
                             rank++;
-                            _ranks[node.Customer.Id] = rank;
-                            result.Add(new CustomerResponse(node.Customer.Id, node.Customer.Score, rank));
+                            _idRanks[id] = rank;
+                            _rankIds[rank] = id;
+                            result.Add(new CustomerResponse(id, node.Customer.Score, rank));
                         }
                     }
                 }

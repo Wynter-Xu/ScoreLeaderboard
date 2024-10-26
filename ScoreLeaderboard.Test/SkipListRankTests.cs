@@ -52,7 +52,7 @@ namespace ScoreLeaderboard.Test
             _skipListRank.UpdateScore(3, 120);
             _skipListRank.UpdateScore(5, 20);
             _skipListRank.UpdateScore(6, 90);
-            _skipListRank.UpdateScore(1, 110);
+            _skipListRank.UpdateScore(1, 110);  
             _skipListRank.UpdateScore(7, 110);
             _skipListRank.UpdateScore(8, 110);
             _skipListRank.UpdateScore(9, 10);
